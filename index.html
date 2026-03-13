@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>말씀 듀오: 완벽한 분리 협동</title>
+    <title>말씀 듀오: 두 개의 문</title>
     <style>
         body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1a1a1a; color: white; font-family: 'Malgun Gothic', sans-serif; }
         #game-container { display: flex; gap: 20px; border: 8px solid #444; padding: 10px; background: #333; border-radius: 10px; }
@@ -39,7 +39,7 @@ const resultVerseDisplay = document.getElementById('result-verse');
 let currentStage = 1;
 let gameState = 'PLAYING';
 let platforms = [], obstacles = [], buttons = [], pixels = [];
-let key = null, door = null;
+let key = null, doors = []; // 문을 배열로 변경 (여러 개 지원)
 const gravity = 0.45, friction = 0.82;
 
 const characters = {
@@ -66,7 +66,7 @@ function loadStage(stage) {
     Object.values(characters).forEach(c => { c.dx = 0; c.dy = 0; });
     
     platforms = [{ x: 0, y: 470, w: 600, h: 30 }]; 
-    obstacles = []; buttons = []; pixels = []; key = null; door = null;
+    obstacles = []; buttons = []; pixels = []; key = null; doors = [];
 
     if (stage === 1) {
         characters.fire.x = 30; characters.fire.y = 430;
@@ -74,18 +74,15 @@ function loadStage(stage) {
         platforms.push({ x: 200, y: 350, w: 200, h: 15 });
         buttons.push({ x: 280, y: 340, w: 40, h: 10, pressed: false, sticky: true, targetPlatform: { x: 450, y: 250, w: 100, h: 15 } });
     } else if (stage === 2) {
-        // [수정] 스폰 위치 분리
-        characters.fire.x = 30; characters.fire.y = 430; // 1층 스폰
-        characters.water.x = 30; characters.water.y = 210; // 2층 스폰
+        characters.fire.x = 30; characters.fire.y = 430; // 1층
+        characters.water.x = 30; characters.water.y = 210; // 2층
         
         platforms.push({ x: 0, y: 250, w: 600, h: 10 }); // 2층 바닥
-        // 장애물 배치
-        obstacles.push({ x: 200, y: 455, w: 70, h: 15, type: 'water' }); // 1층 물 웅덩이 (불 조심)
-        obstacles.push({ x: 300, y: 235, w: 70, h: 15, type: 'fire' });  // 2층 불 웅덩이 (물 조심)
+        obstacles.push({ x: 200, y: 455, w: 70, h: 15, type: 'water' });
+        obstacles.push({ x: 300, y: 235, w: 70, h: 15, type: 'fire' });
         
-        // 협동 버튼
-        buttons.push({ x: 450, y: 460, w: 40, h: 10, pressed: false, sticky: true, targetPlatform: { x: 500, y: 150, w: 80, h: 10 } }); // 1층 불이 밟음 -> 2층 물의 발판
-        buttons.push({ x: 150, y: 240, w: 40, h: 10, pressed: false, sticky: true, targetPlatform: { x: 450, y: 380, w: 100, h: 10 } }); // 2층 물이 밟음 -> 1층 불의 발판
+        buttons.push({ x: 450, y: 460, w: 40, h: 10, pressed: false, sticky: true, targetPlatform: { x: 500, y: 150, w: 80, h: 10 } });
+        buttons.push({ x: 150, y: 240, w: 40, h: 10, pressed: false, sticky: true, targetPlatform: { x: 450, y: 380, w: 100, h: 10 } });
     } else {
         characters.fire.x = 30; characters.fire.y = 430;
         characters.water.x = 80; characters.water.y = 430;
@@ -94,8 +91,6 @@ function loadStage(stage) {
     }
     setupVersePuzzle();
 }
-
-// ... (setupVersePuzzle, spawnKey, spawnDoor 등 기존 함수 유지)
 
 function setupVersePuzzle() {
     wordArea.innerHTML = ""; resultVerseDisplay.innerText = "";
@@ -122,13 +117,24 @@ function setupVersePuzzle() {
 }
 
 function spawnKey() {
-    key = { x: 540, y: 80, w: 30, h: 30, collected: false, img: new Image() };
+    // 2스테이지는 물이 얻기 쉽게 2층에 열쇠 배치
+    key = { x: 540, y: currentStage === 2 ? 80 : 100, w: 30, h: 30, collected: false, img: new Image() };
     key.img.src = 'https://cdn-icons-png.flaticon.com/512/295/295128.png';
 }
 
 function spawnDoor() {
-    door = { x: 300, y: 410, w: 40, h: 60, img: new Image() };
-    door.img.src = 'https://cdn-icons-png.flaticon.com/512/1066/1066060.png';
+    doors = [];
+    let img = new Image();
+    img.src = 'https://cdn-icons-png.flaticon.com/512/1066/1066060.png';
+
+    if (currentStage === 2) {
+        // 스테이지 2: 아래층(불)과 위층(물)에 각각 문 생성
+        doors.push({ x: 50, y: 410, w: 40, h: 60, img: img }); // 불 소년의 문 (1층 왼쪽)
+        doors.push({ x: 50, y: 190, w: 40, h: 60, img: img }); // 물 소녀의 문 (2층 왼쪽)
+    } else {
+        // 나머지 스테이지: 중앙 바닥에 문 하나 생성
+        doors.push({ x: 300, y: 410, w: 40, h: 60, img: img }); 
+    }
 }
 
 function update() {
@@ -180,12 +186,31 @@ function update() {
         obj.el.style.left = (x + obj.vel.x) + 'px'; obj.el.style.top = (y + obj.vel.y) + 'px';
     });
 
+    // 열쇠 획득 처리
     if (key && !key.collected && (checkColl(characters.fire, key) || checkColl(characters.water, key))) {
         key.collected = true; gameState = 'KEY_COLLECTED'; spawnDoor();
     }
-    if (door && checkColl(characters.fire, door) && checkColl(characters.water, door)) {
-        if (currentStage < 3) { currentStage++; loadStage(currentStage); }
-        else { alert("🎉 축하합니다! 모든 말씀을 완성하고 미션을 완료했습니다!"); currentStage = 1; loadStage(1); }
+
+    // 문 통과 처리 (스테이지 2는 각각의 문, 나머지는 공용 문)
+    if (gameState === 'KEY_COLLECTED' && doors.length > 0) {
+        let isCleared = false;
+        
+        if (currentStage === 2) {
+            // 스테이지 2: 불은 doors[0](1층), 물은 doors[1](2층)에 닿아야 함
+            if (checkColl(characters.fire, doors[0]) && checkColl(characters.water, doors[1])) {
+                isCleared = true;
+            }
+        } else {
+            // 다른 스테이지: 둘 다 doors[0](공용 문)에 닿아야 함
+            if (checkColl(characters.fire, doors[0]) && checkColl(characters.water, doors[0])) {
+                isCleared = true;
+            }
+        }
+
+        if (isCleared) {
+            if (currentStage < 3) { currentStage++; loadStage(currentStage); }
+            else { alert("🎉 축하합니다! 모든 말씀을 완성하고 미션을 완료했습니다!"); currentStage = 1; loadStage(1); }
+        }
     }
 }
 
@@ -202,8 +227,14 @@ function draw() {
     });
     obstacles.forEach(o => { ctx.fillStyle = o.type === 'fire' ? '#e67e22' : '#3498db'; ctx.fillRect(o.x, o.y, o.w, o.h); });
     pixels.forEach(p => { ctx.fillStyle = p.type === 'fire' ? '#e67e22' : '#3498db'; ctx.fillRect(p.x, p.y, p.size, p.size); });
+    
     if (key && !key.collected) ctx.drawImage(key.img, key.x, key.y, 30, 30);
-    if (door) ctx.drawImage(door.img, door.x, door.y, 40, 60);
+    
+    // 생성된 모든 문 그리기
+    doors.forEach(d => {
+        if (d.img.complete) ctx.drawImage(d.img, d.x, d.y, d.w, d.h);
+    });
+    
     ctx.drawImage(characters.fire.img, characters.fire.x, characters.fire.y, 30, 30);
     ctx.drawImage(characters.water.img, characters.water.x, characters.water.y, 30, 30);
 }
