@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>말씀 듀오: 불과 물의 모험</title>
+    <style>
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1a1a1a; color: white; font-family: 'Malgun Gothic', sans-serif; }
+        #game-container { display: flex; gap: 20px; border: 8px solid #444; padding: 10px; background: #333; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        canvas { background: #87CEEB; border: 3px solid #000; display: block; }
+        #verse-panel { width: 280px; background: #fefefe; color: #333; padding: 20px; position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; border-radius: 8px; border: 2px solid #ccc; }
+        #verse-panel h4 { margin-top: 0; color: #5d4037; }
+        .word { position: absolute; padding: 6px 12px; background: #fff9c4; border: 1px solid #fbc02d; border-radius: 20px; cursor: pointer; user-select: none; font-weight: bold; font-size: 14px; box-shadow: 2px 2px 5px rgba(0,0,0,0.2); transition: transform 0.1s; }
+        .word:hover { transform: scale(1.1); background: #fff176; }
+        #word-area { height: 350px; width: 100%; position: relative; border-bottom: 2px solid #eee; margin-bottom: 10px; }
+        #result-verse { font-weight: bold; color: #1976d2; text-align: center; min-height: 40px; }
+        .info { margin-top: 10px; text-align: center; font-size: 14px; }
+        .key-info { display: flex; justify-content: space-around; width: 100%; margin-top: 5px; }
+        .key-info div { padding: 2px 8px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div>
+        <canvas id="gameCanvas" width="600" height="500"></canvas>
+        <div class="info">
+            <strong>Stage: <span id="stage-num">1</span></strong>
+            <div class="key-info">
+                <div style="background:#ff5722; color:white;">🔥 불 소년: A/D (이동), W (점프)</div>
+                <div style="background:#2196f3; color:white;">💧 물 소녀: ←/→ (이동), ↑ (점프)</div>
+            </div>
+        </div>
+    </div>
+    <div id="verse-panel">
+        <h4>말씀 퍼즐</h4>
+        <div id="word-area"></div>
+        <div id="result-verse"></div>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const stageDisplay = document.getElementById('stage-num');
+const wordArea = document.getElementById('word-area');
+const resultVerseDisplay = document.getElementById('result-verse');
+
+// --- 게임 설정 & 상태 ---
+let currentStage = 1;
+let gameState = 'PLAYING'; // PLAYING, VERSE_COMPLETE, KEY_COLLECTED, CLEAR
+let platforms = [];
+let obstacles = [];
+let key = null;
+let door = null;
+const gravity = 0.6;
+const friction = 0.8;
+
+// --- 캐릭터 설정 ---
+const characters = {
+    fire: { x: 50, y: 430, w: 35, h: 40, dx: 0, dy: 0, speed: 4, jump: 12, grounded: false, color: '#FF5722', type: 'fire',
+            img: new Image(), src: 'https://cdn-icons-png.flaticon.com/512/785/785116.png' }, // 불 아이콘
+    water: { x: 100, y: 430, w: 35, h: 40, dx: 0, dy: 0, speed: 4, jump: 12, grounded: false, color: '#2196F3', type: 'water',
+             img: new Image(), src: 'https://cdn-icons-png.flaticon.com/512/3100/3100566.png' } // 물 아이콘
+};
+characters.fire.img.src = characters.fire.src;
+characters.water.img.src = characters.water.src;
+
+// --- 말씀 데이터 ---
+const verses = [
+    { text: ["하나님은", "사랑이심이라"], ref: "(요일 4:8)" },
+    { text: ["여호와는", "나의", "목자시니", "내게", "부족함이", "없으리로다"], ref: "(시 23:1)" },
+    { text: ["네", "길을", "여호와께", "맡기라", "그를", "의지하면", "그가", "이루시고"], ref: "(시 37:5)" }
+];
+let currentVerseIndex = 0;
+let collectedWords = [];
+let wordObjects = [];
+
+// --- 함수 정의 ---
+
+// 랜덤 위치 가져오기 (문/열쇠용)
+function getRandomPosition(w, h) {
+    let pos;
+    let overlapping = true;
+    while (overlapping) {
+        pos = { x: Math.random() * (canvas.width - w - 100) + 50, y: Math.random() * (canvas.height - h - 150) + 50 };
+        overlapping = false;
+        // 플랫폼이나 장애물 위에 생성되지 않도록 간단 체크
+        [...platforms, ...obstacles].forEach(obj => {
+            if (pos.x < obj.x + obj.w && pos.x + w > obj.x && pos.y < obj.y + obj.h && pos.y + h > obj.y) {
+                overlapping = true;
+            }
+        });
+    }
+    return pos;
+}
+
+// 스테이지 로드
+function loadStage(stage) {
+    gameState = 'PLAYING';
+    stageDisplay.innerText = stage;
+    characters.fire.x = 50; characters.fire.y = 430; characters.fire.dx = 0; characters.fire.dy = 0;
+    characters.water.x = 100; characters.water.y = 430; characters.water.dx = 0; characters.water.dy = 0;
+    key = null;
+    door = null;
+
+    platforms = [ { x: 0, y: 470, w: 600, h: 30 } ]; // 기본 바닥
+    obstacles = [];
+
+    const difficultyMultiplier = 1 + (stage - 1) * 0.2; // 스테이지별 난이도 가중치
+
+    if (stage === 1) {
+        platforms.push({ x: 150, y: 380, w: 120, h: 15 }, { x: 350, y: 300, w: 120, h: 15 }, { x: 150, y: 200, w: 120, h: 15 });
+        obstacles.push({ x: 300, y: 450, w: 50, h: 20, type: 'water' }); // 불 조심!
+    } else if (stage === 2) {
+        platforms.push({ x: 100, y: 400, w: 80, h: 15 }, { x: 250, y: 330, w: 80, h: 15 }, { x: 400, y: 260, w: 80, h: 15 }, { x: 250, y: 180, w: 80, h: 15 }, { x: 100, y: 100, w: 80, h: 15 });
+        obstacles.push({ x: 200, y: 450, w: 60, h: 20, type: 'fire' }, { x: 350, y: 310, w: 50, h: 20, type: 'water' });
+    } else if (stage === 3) {
+        platforms.push({ x: 50, y: 410, w: 60, h: 12 }, { x: 180, y: 350, w: 60, h: 12 }, { x: 320, y: 290, w: 60, h: 12 }, { x: 450, y: 230, w: 60, h: 12 }, { x: 320, y: 160, w: 60, h: 12 }, { x: 150, y: 100, w: 60, h: 12 });
+        obstacles.push({ x: 150, y: 450, w: 100, h: 20, type: 'fire' }, { x: 380, y: 270, w: 70, h: 20, type: 'water' }, { x: 250, y: 140, w: 60, h: 20, type: 'fire' });
+    }
+
+    setupVersePuzzle();
+}
+
+// 말씀 퍼즐 설정
+function setupVersePuzzle() {
+    wordArea.innerHTML = "";
+    resultVerseDisplay.innerText = "";
+    collectedWords = [];
+    wordObjects = [];
+    
+    const currentVerse = verses[currentVerseIndex];
+    let words = [...currentVerse.text];
+    words.sort(() => Math.random() - 0.5); // 섞기
+
+    words.forEach(text => {
+        const span = document.createElement('div');
+        span.className = 'word';
+        span.innerText = text;
+        // 랜덤 시작 위치
+        span.style.left = Math.random() * (wordArea.offsetWidth - 80) + 'px';
+        span.style.top = Math.random() * (wordArea.offsetHeight - 40) + 'px';
+        
+        // 이동 속도/방향 랜덤
+        const vel = { x: (Math.random() - 0.5) * 2 * (1 + currentStage*0.2), y: (Math.random() - 0.5) * 2 * (1 + currentStage*0.2) };
+        wordObjects.push({ el: span, vel: vel, text: text });
+
+        span.onclick = () => {
+            if (gameState !== 'PLAYING') return; // 게임 오버 등에서는 클릭 불가
+            if (text === currentVerse.text[collectedWords.length]) {
+                collectedWords.push(text);
+                resultVerseDisplay.innerText = collectedWords.join(" ");
+                span.style.display = 'none'; // 숨기기 (remove 대신)
+                if (collectedWords.length === currentVerse.text.length) {
+                    resultVerseDisplay.innerText += " " + currentVerse.ref;
+                    gameState = 'VERSE_COMPLETE';
+                    spawnKey(); // 열쇠 등장!
+                }
+            } else {
+                // 틀렸을 때 간단한 피드백 (예: 흔들기)
+                span.style.animation = 'shake 0.3s';
+                setTimeout(() => span.style.animation = '', 300);
+            }
+        };
+        wordArea.appendChild(span);
+    });
+}
+
+// 열쇠 소환
+function spawnKey() {
+    const pos = getRandomPosition(30, 30);
+    key = { x: pos.x, y: pos.y, w: 30, h: 30, collected: false, img: new Image() };
+    key.img.src = 'https://cdn-icons-png.flaticon.com/512/295/295128.png'; // 열쇠 아이콘
+    // 열쇠가 생겼음을 알림
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.5)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+// 문 소환 (랜덤 위치)
+function spawnDoor() {
+    const pos = getRandomPosition(40, 60);
+    door = { x: pos.x, y: pos.y, w: 40, h: 60, img: new Image() };
+    door.img.src = 'https://cdn-icons-png.flaticon.com/512/1066/1066060.png'; // 문 아이콘
+}
+
+// 키 입력 처리
+let keys = {};
+window.addEventListener('keydown', e => keys[e.code] = true);
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+// 충돌 체크 함수
+function checkCollision(obj1, obj2) {
+    return obj1.x < obj2.x + obj2.w && obj1.x + obj1.w > obj2.x &&
+           obj1.y < obj2.y + obj2.h && obj1.y + obj1.h > obj2.y;
+}
+
+// 캐릭터 업데이트
+function updateCharacter(char, moveKeys) {
+    // 이동
+    if (keys[moveKeys.left]) char.dx -= char.speed * 0.1;
+    if (keys[moveKeys.right]) char.dx += char.speed * 0.1;
+    if (keys[moveKeys.jump] && char.grounded) {
+        char.dy = -char.jump;
+        char.grounded = false;
+    }
+
+    // 물리 적용
+    char.dy += gravity;
+    char.dx *= friction;
+    char.x += char.dx;
+    char.y += char.dy;
+    char.grounded = false;
+
+    // 플랫폼 충돌
+    platforms.forEach(p => {
+        if (checkCollision(char, p)) {
+            // 아래로 떨어질 때
+            if (char.dy > 0 && char.y + char.h < p.y + char.dy + 2) {
+                char.y = p.y - char.h;
+                char.dy = 0;
+                char.grounded = true;
+            }
+            // 위로 부딪힐 때
+            else if (char.dy < 0 && char.y > p.y + p.h + char.dy - 2) {
+                char.y = p.y + p.h;
+                char.dy = 0;
+            }
+            // 옆으로 부딪힐 때
+            else if (char.dx > 0) { char.x = p.x - char.w; char.dx = 0; }
+            else if (char.dx < 0) { char.x = p.x + p.w; char.dx = 0; }
+        }
+    });
+
+    // 화면 경계 제한
+    if (char.x < 0) char.x = 0;
+    if (char.x + char.w > canvas.width) char.x = canvas.width - char.w;
+    if (char.y + char.h > canvas.height) { char.y = canvas.height - char.h; char.dy = 0; char.grounded = true; } // 바닥 안전장치
+
+    // 장애물 충돌 (사망 처리)
+    obstacles.forEach(o => {
+        if (checkCollision(char, o)) {
+            if ((char.type === 'fire' && o.type === 'water') || (char.type === 'water' && o.type === 'fire')) {
+                alert(`${char.type === 'fire' ? '불 소년' : '물 소녀'}이(가) 위험에 빠졌습니다! 스테이지를 다시 시작합니다.`);
+                loadStage(currentStage);
+            }
+        }
+    });
+}
+
+// 단어 이동 업데이트
+function updateWords() {
+    wordObjects.forEach(obj => {
+        if (obj.el.style.display === 'none') return; // 이미 맞춰진 단어는 건너뜀
+        let x = parseFloat(obj.el.style.left);
+        let y = parseFloat(obj.el.style.top);
+        
+        // 경계 부딪힘 처리
+        if (x < 0 || x > wordArea.offsetWidth - obj.el.offsetWidth) obj.vel.x *= -1;
+        if (y < 0 || y > wordArea.offsetHeight - obj.el.offsetHeight) obj.vel.y *= -1;
+        
+        obj.el.style.left = (x + obj.vel.x) + 'px';
+        obj.el.style.top = (y + obj.vel.y) + 'px';
+    });
+}
+
+// 게임 업데이트 메인
+function update() {
+    updateCharacter(characters.fire, { left: 'KeyA', right: 'KeyD', jump: 'KeyW' });
+    updateCharacter(characters.water, { left: 'ArrowLeft', right: 'ArrowRight', jump: 'ArrowUp' });
+    updateWords();
+
+    // 열쇠 획득 체크
+    if (gameState === 'VERSE_COMPLETE' && key && !key.collected) {
+        if (checkCollision(characters.fire, key) || checkCollision(characters.water, key)) {
+            key.collected = true;
+            gameState = 'KEY_COLLECTED';
+            spawnDoor(); // 문 등장!
+        }
+    }
+
+    // 문 도달 체크 (둘 다 도착해야 함)
+    if (gameState === 'KEY_COLLECTED' && door) {
+        if (checkCollision(characters.fire, door) && checkCollision(characters.water, door)) {
+            if (currentStage < 3) {
+                alert(`Stage ${currentStage} 클리어! 다음 스테이지로 이동합니다.`);
+                currentStage++;
+                currentVerseIndex++;
+                loadStage(currentStage);
+            } else {
+                alert("축하합니다! 모든 말씀을 완성하고 모험을 마쳤습니다!");
+                currentStage = 1; currentVerseIndex = 0;
+                loadStage(1);
+            }
+        }
+    }
+}
+
+// 그리기 함수
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 플랫폼
+    ctx.fillStyle = '#5d4037'; // 나무색
+    platforms.forEach(p => {
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+        ctx.strokeStyle = '#3e2723'; ctx.strokeRect(p.x, p.y, p.w, p.h);
+    });
+
+    // 장애물 (물/불 웅덩이)
+    obstacles.forEach(o => {
+        ctx.fillStyle = o.type === 'fire' ? '#ff3d00' : '#2979ff';
+        ctx.beginPath();
+        ctx.moveTo(o.x, o.y + o.h);
+        ctx.lineTo(o.x + o.w/2, o.y);
+        ctx.lineTo(o.x + o.w, o.y + o.h);
+        ctx.fill(); // 간단한 삼각형 웅덩이
+    });
+
+    // 열쇠
+    if (gameState === 'VERSE_COMPLETE' && key && !key.collected) {
+        if (key.img.complete) ctx.drawImage(key.img, key.x, key.y, key.w, key.h);
+        else { ctx.fillStyle = 'gold'; ctx.fillRect(key.x, key.y, key.w, key.h); } // 이미지 로딩 전 대비
+    }
+
+    // 문
+    if (gameState === 'KEY_COLLECTED' && door) {
+        if (door.img.complete) ctx.drawImage(door.img, door.x, door.y, door.w, door.h);
+        else { ctx.fillStyle = '#8d6e63'; ctx.fillRect(door.x, door.y, door.w, door.h); }
+    }
+
+    // 캐릭터 그리기
+    [characters.fire, characters.water].forEach(char => {
+        if (char.img.complete) {
+            ctx.drawImage(char.img, char.x, char.y, char.w, char.h);
+        } else {
+            ctx.fillStyle = char.color;
+            ctx.fillRect(char.x, char.y, char.w, char.h);
+        }
+        // 이름 표시 (간단히)
+        ctx.fillStyle = 'white'; ctx.font = '10px sans-serif'; ctx.fillText(char.type === 'fire' ? '불' : '물', char.x + 10, char.y - 5);
+    });
+}
+
+// 게임 루프
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+// 흔들기 애니메이션 스타일 추가
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes shake {
+        0% { transform: translate(1px, 1px) rotate(0deg); }
+        10% { transform: translate(-1px, -2px) rotate(-1deg); }
+        30% { transform: translate(3px, 2px) rotate(0deg); }
+        50% { transform: translate(-1px, -1px) rotate(1deg); }
+        70% { transform: translate(3px, 1px) rotate(-1deg); }
+        100% { transform: translate(1px, -2px) rotate(0deg); }
+    }
+`;
+document.head.appendChild(style);
+
+// 시작
+loadStage(1);
+loop();
+</script>
+
+</body>
+</html>
