@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>말씀 듀오: 스테이지 어드벤처</title>
+    <title>말씀 듀오: 완벽한 분리 협동</title>
     <style>
         body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1a1a1a; color: white; font-family: 'Malgun Gothic', sans-serif; }
         #game-container { display: flex; gap: 20px; border: 8px solid #444; padding: 10px; background: #333; border-radius: 10px; }
@@ -19,7 +19,7 @@
     <div>
         <canvas id="gameCanvas" width="600" height="500"></canvas>
         <div style="text-align:center; margin-top:10px;">
-            <strong>Stage: <span id="stage-num">1</span></strong> | 불(AWD) 물(방향키)
+            <strong>Stage: <span id="stage-num">1</span></strong> | 🔥불(AWD) 💧물(방향키)
         </div>
     </div>
     <div id="verse-panel">
@@ -63,32 +63,39 @@ function loadStage(stage) {
     gameState = 'PLAYING';
     stageDisplay.innerText = stage;
     keys = {};
-    Object.values(characters).forEach(c => { c.dx = 0; c.dy = 0; c.y = 430; });
-    characters.fire.x = 30; characters.water.x = 80;
+    Object.values(characters).forEach(c => { c.dx = 0; c.dy = 0; });
     
     platforms = [{ x: 0, y: 470, w: 600, h: 30 }]; 
     obstacles = []; buttons = []; pixels = []; key = null; door = null;
 
     if (stage === 1) {
+        characters.fire.x = 30; characters.fire.y = 430;
+        characters.water.x = 80; characters.water.y = 430;
         platforms.push({ x: 200, y: 350, w: 200, h: 15 });
-        // 스테이지 1: 밟으면 영구 유지 (sticky: true)
         buttons.push({ x: 280, y: 340, w: 40, h: 10, pressed: false, sticky: true, targetPlatform: { x: 450, y: 250, w: 100, h: 15 } });
     } else if (stage === 2) {
-        // 스테이지 2: 위아래 협동
-        platforms.push({ x: 0, y: 250, w: 600, h: 10 }); // 중앙 층 분리
-        obstacles.push({ x: 200, y: 455, w: 60, h: 15, type: 'water' }); // 아래층 장애물
-        obstacles.push({ x: 300, y: 235, w: 60, h: 15, type: 'fire' });  // 위층 장애물
-        // 아래 불이 밟으면 위 물의 발판이 생김
-        buttons.push({ x: 50, y: 460, w: 40, h: 10, pressed: false, sticky: true, targetPlatform: { x: 400, y: 180, w: 100, h: 15 } });
-        // 위 물이 밟으면 아래 불의 발판이 생김
-        buttons.push({ x: 500, y: 240, w: 40, h: 10, pressed: false, sticky: true, targetPlatform: { x: 400, y: 380, w: 100, h: 15 } });
+        // [수정] 스폰 위치 분리
+        characters.fire.x = 30; characters.fire.y = 430; // 1층 스폰
+        characters.water.x = 30; characters.water.y = 210; // 2층 스폰
+        
+        platforms.push({ x: 0, y: 250, w: 600, h: 10 }); // 2층 바닥
+        // 장애물 배치
+        obstacles.push({ x: 200, y: 455, w: 70, h: 15, type: 'water' }); // 1층 물 웅덩이 (불 조심)
+        obstacles.push({ x: 300, y: 235, w: 70, h: 15, type: 'fire' });  // 2층 불 웅덩이 (물 조심)
+        
+        // 협동 버튼
+        buttons.push({ x: 450, y: 460, w: 40, h: 10, pressed: false, sticky: true, targetPlatform: { x: 500, y: 150, w: 80, h: 10 } }); // 1층 불이 밟음 -> 2층 물의 발판
+        buttons.push({ x: 150, y: 240, w: 40, h: 10, pressed: false, sticky: true, targetPlatform: { x: 450, y: 380, w: 100, h: 10 } }); // 2층 물이 밟음 -> 1층 불의 발판
     } else {
-        // 스테이지 3: 픽셀 피하기
+        characters.fire.x = 30; characters.fire.y = 430;
+        characters.water.x = 80; characters.water.y = 430;
         platforms.push({ x: 100, y: 380, w: 100, h: 15 }, { x: 400, y: 300, w: 100, h: 15 });
         buttons.push({ x: 130, y: 370, w: 40, h: 10, pressed: false, sticky: true, targetPlatform: { x: 250, y: 220, w: 100, h: 15 } });
     }
     setupVersePuzzle();
 }
+
+// ... (setupVersePuzzle, spawnKey, spawnDoor 등 기존 함수 유지)
 
 function setupVersePuzzle() {
     wordArea.innerHTML = ""; resultVerseDisplay.innerText = "";
@@ -115,7 +122,7 @@ function setupVersePuzzle() {
 }
 
 function spawnKey() {
-    key = { x: 520, y: 100, w: 30, h: 30, collected: false, img: new Image() };
+    key = { x: 540, y: 80, w: 30, h: 30, collected: false, img: new Image() };
     key.img.src = 'https://cdn-icons-png.flaticon.com/512/295/295128.png';
 }
 
@@ -125,12 +132,10 @@ function spawnDoor() {
 }
 
 function update() {
-    // 픽셀 생성 (스테이지 3)
     if (currentStage === 3 && Math.random() < 0.05) {
         pixels.push({ x: Math.random() * 600, y: 0, size: 8, dy: 2, type: Math.random() > 0.5 ? 'fire' : 'water' });
     }
 
-    // 캐릭터 업데이트
     [characters.fire, characters.water].forEach((char, idx) => {
         const ctrl = idx === 0 ? { left: 'KeyA', right: 'KeyD', jump: 'KeyW' } : { left: 'ArrowLeft', right: 'ArrowRight', jump: 'ArrowUp' };
         if (keys[ctrl.left]) char.dx -= char.speed;
@@ -142,12 +147,7 @@ function update() {
 
         let activePlats = [...platforms];
         buttons.forEach(b => {
-            // 버튼 충돌 체크
-            if (char.x < b.x + b.w && char.x + char.w > b.x && char.y + char.h > b.y && char.y < b.y + b.h) {
-                b.pressed = true;
-            } else if (!b.sticky) {
-                b.pressed = false; // sticky가 아니면 떼면 꺼짐 (이번엔 모두 sticky로 설정함)
-            }
+            if (char.x < b.x + b.w && char.x + char.w > b.x && char.y + char.h > b.y && char.y < b.y + b.h) { b.pressed = true; }
             if (b.pressed) activePlats.push(b.targetPlatform);
         });
 
@@ -157,30 +157,22 @@ function update() {
             }
         });
 
-        // 장애물 충돌
         obstacles.forEach(o => {
             if (char.x < o.x + o.w && char.x + char.w > o.x && char.y < o.y + o.h && char.y + char.h > o.y) {
-                if ((char.type === 'fire' && o.type === 'water') || (char.type === 'water' && o.type === 'fire')) {
-                    loadStage(currentStage);
-                }
+                if ((char.type === 'fire' && o.type === 'water') || (char.type === 'water' && o.type === 'fire')) { loadStage(currentStage); }
             }
         });
         
-        // 픽셀 충돌 (스테이지 3)
         pixels.forEach((p, pIdx) => {
             if (char.x < p.x + p.size && char.x + char.w > p.x && char.y < p.y + p.size && char.y + char.h > p.y) {
-                if ((char.type === 'fire' && p.type === 'water') || (char.type === 'water' && p.type === 'fire')) {
-                    loadStage(currentStage);
-                }
+                if ((char.type === 'fire' && p.type === 'water') || (char.type === 'water' && p.type === 'fire')) { loadStage(currentStage); }
             }
         });
     });
 
-    // 픽셀 이동
     pixels.forEach(p => p.y += p.dy);
     pixels = pixels.filter(p => p.y < 500);
 
-    // 단어 이동
     wordObjects.forEach(obj => {
         if (obj.el.style.display === 'none') return;
         let x = parseFloat(obj.el.style.left), y = parseFloat(obj.el.style.top);
@@ -188,13 +180,12 @@ function update() {
         obj.el.style.left = (x + obj.vel.x) + 'px'; obj.el.style.top = (y + obj.vel.y) + 'px';
     });
 
-    // 열쇠 & 문
     if (key && !key.collected && (checkColl(characters.fire, key) || checkColl(characters.water, key))) {
         key.collected = true; gameState = 'KEY_COLLECTED'; spawnDoor();
     }
     if (door && checkColl(characters.fire, door) && checkColl(characters.water, door)) {
         if (currentStage < 3) { currentStage++; loadStage(currentStage); }
-        else { alert("미션 완료!"); currentStage = 1; loadStage(1); }
+        else { alert("🎉 축하합니다! 모든 말씀을 완성하고 미션을 완료했습니다!"); currentStage = 1; loadStage(1); }
     }
 }
 
@@ -207,7 +198,7 @@ function draw() {
         ctx.fillStyle = b.pressed ? '#2ecc71' : '#e74c3c';
         ctx.fillRect(b.x, b.y, b.w, b.h);
         if (b.pressed) { ctx.fillStyle = '#f1c40f'; ctx.fillRect(b.targetPlatform.x, b.targetPlatform.y, b.targetPlatform.w, b.targetPlatform.h); }
-        else { ctx.strokeStyle = '#555'; ctx.setLineDash([5,5]); ctx.strokeRect(b.targetPlatform.x, b.targetPlatform.y, b.targetPlatform.w, b.targetPlatform.h); ctx.setLineDash([]); }
+        else { ctx.strokeStyle = '#fff'; ctx.setLineDash([5,5]); ctx.strokeRect(b.targetPlatform.x, b.targetPlatform.y, b.targetPlatform.w, b.targetPlatform.h); ctx.setLineDash([]); }
     });
     obstacles.forEach(o => { ctx.fillStyle = o.type === 'fire' ? '#e67e22' : '#3498db'; ctx.fillRect(o.x, o.y, o.w, o.h); });
     pixels.forEach(p => { ctx.fillStyle = p.type === 'fire' ? '#e67e22' : '#3498db'; ctx.fillRect(p.x, p.y, p.size, p.size); });
