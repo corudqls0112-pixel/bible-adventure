@@ -544,13 +544,6 @@ char.grounded=true;
 
 });
 
-[characters.fire,characters.water].forEach((char,i)=>{
-
-// 움직임 계산
-// 점프
-// 중력
-// 플랫폼 충돌
-
 if(char.y>500){
 respawn();
 }
@@ -659,9 +652,15 @@ ctx.clearRect(0,0,600,500);
 
 ctx.fillStyle="gray";
 platforms.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
-  /* 장애물 */
+/* 장애물 */
+obstacles.forEach(o=>{
 ctx.fillStyle="orange";
-obstacles.forEach(o=>ctx.fillRect(o.x,o.y,o.w,o.h));
+ctx.beginPath();
+ctx.moveTo(o.x,o.y+o.h);
+ctx.lineTo(o.x+o.w/2,o.y);
+ctx.lineTo(o.x+o.w,o.y+o.h);
+ctx.fill();
+});
   
 ctx.fillStyle="purple";
 movingPlatforms.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
