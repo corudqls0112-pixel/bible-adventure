@@ -152,6 +152,16 @@ const verses=[
 
 { text:["주의","말씀은","내","발에","등이요"], ref:"시119:105" }
 
+{ text:["범사에","감사하라"], ref:"살전5:18" },
+
+{ text:["온유와","겸손으로"], ref:"엡4:2" },
+
+{ text:["항상","기도하고","낙심하지","말라"], ref:"눅18:1" },
+
+{ text:["말씀을","행하는","자가","되라"], ref:"약1:22" },
+
+{ text:["서로","격려하라"], ref:"히10:25" }
+
 ];
 
 let collected=[];
@@ -180,24 +190,176 @@ characters.fire.y=430;
 characters.water.x=70;
 characters.water.y=430;
 
+/* 기본 바닥 */
 platforms.push({x:0,y:470,w:600,h:30});
 
-if(stage>=2){
 
-movingPlatforms.push({
-x:200,
-y:350,
-w:120,
-h:15,
-dx:1.5,
-minX:200,
-maxX:400
-});
+/* STAGE 1 - 튜토리얼 */
+if(stage==1){
+
+platforms.push({x:120,y:420,w:80,h:15});
+platforms.push({x:240,y:360,w:80,h:15});
+platforms.push({x:360,y:300,w:80,h:15});
+platforms.push({x:480,y:240,w:80,h:15});
+
+key={x:520,y:200,w:30,h:30};
 
 }
 
-if(stage==5){
-spawnBoss();
+
+/* STAGE 2 - 계단형 */
+else if(stage==2){
+
+platforms.push({x:100,y:430,w:80,h:15});
+platforms.push({x:200,y:390,w:80,h:15});
+platforms.push({x:300,y:350,w:80,h:15});
+platforms.push({x:400,y:310,w:80,h:15});
+platforms.push({x:500,y:270,w:80,h:15});
+
+key={x:520,y:200,w:30,h:30};
+
+}
+
+
+/* STAGE 3 - 함정 */
+else if(stage==3){
+
+platforms.push({x:120,y:400,w:120,h:15});
+platforms.push({x:350,y:350,w:120,h:15});
+
+obstacles.push({x:250,y:450,w:100,h:20});
+
+key={x:520,y:200,w:30,h:30};
+
+}
+
+
+/* STAGE 4 - 이동 플랫폼 */
+else if(stage==4){
+
+movingPlatforms.push({
+x:150,
+y:380,
+w:120,
+h:15,
+dx:2,
+minX:150,
+maxX:400
+});
+
+platforms.push({x:420,y:300,w:120,h:15});
+
+key={x:520,y:200,w:30,h:30};
+
+}
+
+
+/* STAGE 5 - 첫 보스 */
+else if(stage==5){
+
+platforms.push({x:200,y:380,w:200,h:15});
+
+boss={
+x:300,
+y:430,
+w:60,
+h:60,
+hp:5,
+maxHp:5,
+dir:1,
+attackTimer:0
+};
+
+key={x:520,y:200,w:30,h:30};
+
+}
+
+
+/* STAGE 6 - 미로 */
+else if(stage==6){
+
+platforms.push({x:80,y:420,w:100,h:15});
+platforms.push({x:200,y:360,w:100,h:15});
+platforms.push({x:320,y:420,w:100,h:15});
+platforms.push({x:440,y:360,w:100,h:15});
+
+key={x:520,y:200,w:30,h:30};
+
+}
+
+
+/* STAGE 7 - 긴 점프 */
+else if(stage==7){
+
+platforms.push({x:150,y:420,w:80,h:15});
+platforms.push({x:300,y:360,w:80,h:15});
+platforms.push({x:450,y:300,w:80,h:15});
+
+key={x:520,y:200,w:30,h:30};
+}
+
+
+/* STAGE 8 - 더 어려운 이동 플랫폼 */
+else if(stage==8){
+
+movingPlatforms.push({
+x:100,
+y:380,
+w:100,
+h:15,
+dx:2,
+minX:100,
+maxX:350
+});
+
+movingPlatforms.push({
+x:300,
+y:300,
+w:100,
+h:15,
+dx:-2,
+minX:250,
+maxX:500
+});
+
+key={x:520,y:200,w:30,h:30};
+
+}
+
+
+/* STAGE 9 - 함정 + 점프 */
+else if(stage==9){
+
+platforms.push({x:120,y:420,w:80,h:15});
+platforms.push({x:260,y:350,w:80,h:15});
+platforms.push({x:400,y:280,w:80,h:15});
+
+obstacles.push({x:200,y:450,w:80,h:20});
+obstacles.push({x:350,y:450,w:80,h:20});
+
+key={x:520,y:200,w:30,h:30};
+
+}
+
+
+/* STAGE 10 - 최종 보스 */
+else if(stage==10){
+
+platforms.push({x:200,y:380,w:200,h:15});
+
+boss={
+x:300,
+y:420,
+w:80,
+h:80,
+hp:10,
+maxHp:10,
+dir:1,
+attackTimer:0
+};
+  
+key={x:520,y:200,w:30,h:30};
+
 }
 
 setupVersePuzzle();
@@ -239,6 +401,7 @@ if(collected.length===verse.text.length){
 
 if(boss){
 boss.hp--;
+
 if(boss.hp<=0){
 boss=null;
 spawnKey();
@@ -246,6 +409,10 @@ spawnKey();
 }else{
 spawnKey();
 }
+
+}
+
+
 
 }
 
@@ -261,8 +428,11 @@ wordArea.appendChild(span);
 
 function spawnKey(){
 
+if(currentStage==1){
+key={x:500,y:180,w:30,h:30};
+}else{
 key={x:540,y:100,w:30,h:30};
-
+}
 }
 
 function spawnDoor(){
@@ -408,6 +578,15 @@ dy:3
 }
 
 }
+if(boss){
+
+boss.x += boss.dir*1.5;
+
+if(boss.x < 50 || boss.x > 520){
+boss.dir *= -1;
+}
+
+}
 
 pixels.forEach(p=>p.y+=p.dy);
 
@@ -419,6 +598,7 @@ respawn();
 
 });
 
+pixels = pixels.filter(p => p.y < 520);
 }
 
 function checkColl(a,b){
@@ -466,8 +646,30 @@ ctx.fillRect(p.x,p.y,p.size,p.size);
 });
 
 if(boss){
+
 ctx.fillStyle="darkred";
 ctx.fillRect(boss.x,boss.y,boss.w,boss.h);
+
+/* ⭐ 체력바 배경 */
+ctx.fillStyle="black";
+ctx.fillRect(boss.x,boss.y-12,boss.w,6);
+
+/* ⭐ 체력바 */
+/* ⭐ 체력 색 결정 */
+if(boss.hp/boss.maxHp < 0.4){
+ctx.fillStyle="red";
+}else{
+ctx.fillStyle="lime";
+}
+
+/* ⭐ 체력바 */
+ctx.fillRect(
+boss.x,
+boss.y-12,
+boss.w*(boss.hp/boss.maxHp),
+6
+);
+  
 }
 
 drawCharacter(characters.fire);
