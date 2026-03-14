@@ -177,7 +177,8 @@ loop();
 
 function loadStage(stage){
 
-stageNum.innerText=stage;
+currentStage = stage;   // ⭐ 이 줄 추가
+stageNum.innerText = stage;
 
 platforms=[];
 movingPlatforms=[];
@@ -663,7 +664,7 @@ w.style.top=y+"px";
 
 });
   
-
+});
 
 if(key){
 
@@ -702,14 +703,14 @@ if(boss.attackTimer>170){
 boss.attackTimer=0;
 
 pixels.push({
-
 x:boss.x+Math.random()*80,
 y:boss.y+80,
+w:10,
+h:10,
 size:10,
 dy:3
-
 });
-
+  
 }
 
 }
