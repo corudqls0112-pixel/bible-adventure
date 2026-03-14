@@ -468,7 +468,17 @@ key={x:300,y:200,w:30,h:30};
 
 function spawnDoor(){
 
+if(currentStage==3){
+
+// ⭐ 스테이지3은 오른쪽 끝
+doors=[{x:550,y:410,w:40,h:60}];
+
+}else{
+
+// 기본 문 위치
 doors=[{x:300,y:410,w:40,h:60}];
+
+}
 
 }
 
