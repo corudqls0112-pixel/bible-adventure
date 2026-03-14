@@ -129,9 +129,13 @@ let boss=null;
 
 let animFrame=0;
 
+let attackCooldown=0;
+let wordObjects=[];
+let invincibleTime=0;
+
 const characters={
-fire:{x:30,y:430,w:30,h:30,dx:0,dy:0,jump:11,grounded:false,type:"fire"},
-water:{x:70,y:430,w:30,h:30,dx:0,dy:0,jump:11,grounded:false,type:"water"}
+fire:{x:30,y:430,w:30,h:30,dx:0,dy:0,jump:11,grounded:false,type:"fire",life:3},
+water:{x:70,y:430,w:30,h:30,dx:0,dy:0,jump:11,grounded:false,type:"water",life:3}
 };
 
 const keys={};
@@ -258,7 +262,7 @@ platforms.push({x:200,y:380,w:200,h:15});
 
 boss={
 x:300,
-y:430,
+y:400,
 w:60,
 h:60,
 hp:5,
@@ -340,7 +344,7 @@ platforms.push({x:200,y:380,w:200,h:15});
 
 boss={
 x:300,
-y:420,
+y:380,
 w:80,
 h:80,
 hp:10,
@@ -376,6 +380,12 @@ span.innerText=word;
 
 span.style.left=Math.random()*150+"px";
 span.style.top=Math.random()*250+"px";
+
+/* 움직임 속도 */
+span.dx=(Math.random()*2-1)*0.5;
+span.dy=(Math.random()*2-1)*0.5;
+
+wordObjects.push(span);
 
 span.onclick=()=>{
 
@@ -476,6 +486,26 @@ attackTimer:0
 
 function respawn(){
 
+if(invincibleTime>0) return;
+
+invincibleTime=60; // 약 1초 무적
+
+characters.fire.life--;
+characters.water.life--;
+
+if(characters.fire.life<=0 || characters.water.life<=0){
+
+alert("💀 게임 오버!");
+currentStage=1;
+
+characters.fire.life=3;
+characters.water.life=3;
+
+loadStage(1);
+return;
+
+}
+
 characters.fire.x=checkpoint.x;
 characters.fire.y=checkpoint.y;
 
@@ -487,6 +517,9 @@ characters.water.y=checkpoint.y;
 let dashCooldown=0;
 
 function update(){
+
+if(attackCooldown>0) attackCooldown--;
+if(invincibleTime>0) invincibleTime--;
 
 animFrame++;
 
@@ -528,13 +561,49 @@ char.y+=char.dy;
 
 char.grounded=false;
 
+  /* 말씀 단어 움직임 */
+
+/* 보스 공격 */
+if((currentStage==5 || currentStage==10) && boss){
+
+if(keys["Space"] && attackCooldown<=0){
+
+attackCooldown=25;
+
+let attackBox={
+x:characters.fire.x-20,
+y:characters.fire.y-10,
+w:characters.fire.w+40,
+h:characters.fire.h+20
+};
+
+if(checkColl(attackBox,boss)){
+
+boss.hp--;
+
+if(boss.hp<=0){
+boss=null;
+spawnKey();
+}
+
+}
+
+}
+
+}
+
 let allPlatforms=[...platforms,...movingPlatforms];
 
 allPlatforms.forEach(p=>{
 
-if(char.x<p.x+p.w && char.x+char.w>p.x && char.y+char.h>p.y && char.y<p.y+p.h){
+if(
+char.x < p.x+p.w &&
+char.x+char.w > p.x &&
+char.y < p.y+p.h &&
+char.y+char.h > p.y
+){
 
-if(char.dy>0){
+if(char.dy>=0){
 char.y=p.y-char.h;
 char.dy=0;
 char.grounded=true;
@@ -544,18 +613,58 @@ char.grounded=true;
 
 });
 
+/* 떨어지면 리스폰 */
 if(char.y>500){
 respawn();
 }
 
-/* 여기 */
+/* 장애물 충돌 */
 obstacles.forEach(o=>{
 if(checkColl(char,o)){
 respawn();
 }
 });
+/* ⭐ 보스 밟기 공격 */
+if(boss && checkColl(char,boss)){
+
+if(char.dy > 0 && char.y + char.h < boss.y + 20){
+
+boss.hp--;
+
+char.dy = -10;   // 튕기는 느낌 더 좋음
+char.y = boss.y - char.h; // ⭐ 겹침 방지
+
+if(boss.hp <= 0){
+boss = null;
+spawnKey();
+}
+
+}else{
+
+respawn();
+
+}
+
+}
+/* ⭐ 여기 추가 */
+wordObjects.forEach(w=>{
+
+let x=parseFloat(w.style.left);
+let y=parseFloat(w.style.top);
+
+x+=w.dx;
+y+=w.dy;
+
+if(x<0 || x>200) w.dx*=-1;
+if(y<0 || y>260) w.dy*=-1;
+
+w.style.left=x+"px";
+w.style.top=y+"px";
 
 });
+  
+
+
 if(key){
 
 if(checkColl(characters.fire,key)||checkColl(characters.water,key)){
@@ -588,7 +697,7 @@ if(boss){
 
 boss.attackTimer++;
 
-if(boss.attackTimer>100){
+if(boss.attackTimer>170){
 
 boss.attackTimer=0;
 
@@ -667,9 +776,10 @@ movingPlatforms.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
 
 if(key){
 ctx.fillStyle="gold";
-ctx.fillRect(key.x,key.y,30,30);
+let glow=Math.sin(animFrame*0.2)*5;
+ctx.fillRect(key.x,key.y+glow,30,30);
 }
-
+  
 doors.forEach(d=>{
 ctx.fillStyle="green";
 ctx.fillRect(d.x,d.y,d.w,d.h);
@@ -682,33 +792,62 @@ ctx.fillRect(p.x,p.y,p.size,p.size);
 
 if(boss){
 
-ctx.fillStyle="darkred";
-ctx.fillRect(boss.x,boss.y,boss.w,boss.h);
+let shake = boss && boss.hp<boss.maxHp ? Math.sin(animFrame*0.5)*3 : 0;
 
-/* ⭐ 체력바 배경 */
+ctx.fillStyle="darkred";
+ctx.fillRect(boss.x+shake,boss.y,boss.w,boss.h);
+
+/* 체력바 */
 ctx.fillStyle="black";
 ctx.fillRect(boss.x,boss.y-12,boss.w,6);
 
-/* ⭐ 체력바 */
-/* ⭐ 체력 색 결정 */
 if(boss.hp/boss.maxHp < 0.4){
 ctx.fillStyle="red";
 }else{
 ctx.fillStyle="lime";
 }
 
-/* ⭐ 체력바 */
 ctx.fillRect(
 boss.x,
 boss.y-12,
 boss.w*(boss.hp/boss.maxHp),
 6
 );
-  
+
 }
 
+/* 캐릭터는 항상 그린다 */
 drawCharacter(characters.fire);
 drawCharacter(characters.water);
+/* 라이프 표시 */
+ctx.fillStyle="white";
+ctx.font="16px Arial";
+
+/* ❤️ Fire 라이프 */
+for(let i=0;i<characters.fire.life;i++){
+
+ctx.fillStyle="red";
+
+ctx.beginPath();
+ctx.arc(15+i*25,18,6,0,Math.PI*2);
+ctx.arc(21+i*25,18,6,0,Math.PI*2);
+ctx.lineTo(18+i*25,28);
+ctx.closePath();
+ctx.fill();
+
+}
+
+/* 💙 Water 라이프 */
+for(let i=0;i<characters.water.life;i++){
+
+ctx.fillStyle="deepskyblue";
+
+ctx.beginPath();
+ctx.arc(15+i*25,42,6,0,Math.PI*2);
+ctx.arc(21+i*25,42,6,0,Math.PI*2);
+ctx.lineTo(18+i*25,52);
+ctx.closePath();
+ctx.fill();
 
 }
 
